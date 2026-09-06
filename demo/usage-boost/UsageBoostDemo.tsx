@@ -178,11 +178,13 @@ type BoostViewProps = {
   quote: UsageBoostQuote
   utilization: Utilization
   maxWidth: number
+  /** Numbers are the user's real ones; make clear the boost is simulated. */
+  live?: boolean
   onApplied: (utilization: Utilization, summary: string) => void
   onCancel: () => void
 }
 
-function BoostView({ quote, utilization, maxWidth, onApplied, onCancel }: BoostViewProps) {
+function BoostView({ quote, utilization, maxWidth, live = false, onApplied, onCancel }: BoostViewProps) {
   const [sessionPercent, setSessionPercent] = useState(() => suggestedBoostPercent(quote, utilization))
   const [isApplying, setIsApplying] = useState(false)
 
@@ -201,7 +203,8 @@ function BoostView({ quote, utilization, maxWidth, onApplied, onCancel }: BoostV
     setTimeout(() => {
       onApplied(
         applyBoostToUtilization(utilization, preview),
-        `Boosted session by ${preview.sessionPercent}% using ${preview.weeklyCost}% of your weekly limit.`,
+        `Boosted session by ${preview.sessionPercent}% using ${preview.weeklyCost}% of your weekly limit.` +
+          (live ? ' (simulated — your real limits are unchanged)' : ''),
       )
     }, 300)
   }
@@ -254,6 +257,12 @@ function BoostView({ quote, utilization, maxWidth, onApplied, onCancel }: BoostV
 
       {preview.blockedReason && <Text color={theme.warning}>{preview.blockedReason}</Text>}
       {isApplying && <Text dimColor>Applying boost…</Text>}
+      {live && (
+        <Text dimColor>
+          Live mode is read-only: applying only updates this screen. Anthropic&apos;s servers
+          would need the boost endpoint from the PR for it to take effect.
+        </Text>
+      )}
 
       <Text dimColor>← less · → more · Enter apply · Esc back</Text>
     </Box>
@@ -262,18 +271,33 @@ function BoostView({ quote, utilization, maxWidth, onApplied, onCancel }: BoostV
 
 // ------------------------------------------------------------------- Shell
 
+export type LiveInfo = {
+  source: 'env' | 'credentials-file' | 'keychain'
+  subscriptionType: string | null
+}
+
 type AppProps = {
   scenario?: ScenarioName
+  /** Real numbers from the usage endpoint; overrides `scenario` when set. */
+  initialUtilization?: Utilization
+  /** Present when the numbers came from the user's own account. */
+  live?: LiveInfo
   /** Terminal columns; defaults to the real width, capped like the CLI. */
   columns?: number
 }
 
-export function App({ scenario = 'screenshot', columns }: AppProps) {
+export function App({ scenario = 'screenshot', initialUtilization, live, columns }: AppProps) {
   const { exit } = useApp()
-  const [utilization, setUtilization] = useState(() => scenarioUtilization(scenario))
+  const [utilization, setUtilization] = useState(
+    () => initialUtilization ?? scenarioUtilization(scenario),
+  )
   const [boostOpen, setBoostOpen] = useState(false)
   const [summary, setSummary] = useState<string | null>(null)
   const maxWidth = Math.min((columns ?? process.stdout.columns ?? 80) - 2, 80)
+
+  const liveLabel = live
+    ? `live · your account${live.subscriptionType ? ` · ${live.subscriptionType}` : ''}`
+    : 'sample data'
 
   return (
     <Box flexDirection="column" borderStyle="round" borderColor={theme.permission} paddingX={1}>
@@ -283,12 +307,14 @@ export function App({ scenario = 'screenshot', columns }: AppProps) {
         <Text bold underline color={theme.permission}>
           Usage
         </Text>
+        <Text dimColor>· {liveLabel}</Text>
       </Box>
       {boostOpen ? (
         <BoostView
           quote={DEMO_QUOTE}
           utilization={utilization}
           maxWidth={maxWidth}
+          live={!!live}
           onApplied={(next, text) => {
             setUtilization(next)
             setSummary(text)

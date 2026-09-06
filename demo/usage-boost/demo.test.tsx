@@ -3,7 +3,7 @@ import { render } from 'ink-testing-library'
 import React from 'react'
 import { App } from './UsageBoostDemo.js'
 
-const tick = (ms = 30) => new Promise(r => setTimeout(r, ms))
+const tick = (ms = 120) => new Promise(r => setTimeout(r, ms))
 const ESC = '\u001B'
 const RIGHT = `${ESC}[C`
 const LEFT = `${ESC}[D`

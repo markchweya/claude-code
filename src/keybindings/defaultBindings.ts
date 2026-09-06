@@ -125,6 +125,10 @@ export const DEFAULT_BINDINGS: KeybindingBlock[] = [
       '/': 'settings:search',
       // Retry loading usage data (only active on error)
       r: 'settings:retry',
+      // Usage tab: open the session-boost switcher and adjust the amount
+      b: 'usageBoost:open',
+      left: 'usageBoost:decrease',
+      right: 'usageBoost:increase',
     },
   },
   {

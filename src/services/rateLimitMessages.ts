@@ -10,6 +10,7 @@ import {
 } from '../utils/auth.js'
 import { hasClaudeAiBillingAccess } from '../utils/billing.js'
 import { formatResetTime } from '../utils/format.js'
+import { isUsageBoostAvailable } from './api/usageBoost.js'
 import type { ClaudeAILimits } from './claudeAiLimits.js'
 
 const FEEDBACK_CHANNEL_ANT = '#briarpatch-cc'
@@ -277,8 +278,12 @@ function getWarningUpsellText(
       return null
     }
 
-    // Pro/Max users: prompt to upgrade
+    // Pro/Max users: offer to shift weekly headroom into this session,
+    // otherwise prompt to upgrade
     if (subscriptionType === 'pro' || subscriptionType === 'max') {
+      if (isUsageBoostAvailable()) {
+        return '/usage to boost this session from your weekly limit, or /upgrade'
+      }
       return '/upgrade to keep using Claude Code'
     }
   }

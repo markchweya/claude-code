@@ -8,6 +8,9 @@ import { useTerminalSize } from '../../hooks/useTerminalSize.js';
 import { Box, Text } from '../../ink.js';
 import { useKeybinding } from '../../keybindings/useKeybinding.js';
 import { type ExtraUsage, fetchUtilization, type RateLimit, type Utilization } from '../../services/api/usage.js';
+import { fetchUsageBoostQuote, isUsageBoostAvailable, type UsageBoostQuote, withMockUsageBoostUtilization } from '../../services/api/usageBoost.js';
+import { shouldSuggestUsageBoost } from '../../utils/usageBoost.js';
+import { UsageBoost } from './UsageBoost.js';
 import { formatResetText } from '../../utils/format.js';
 import { logError } from '../../utils/log.js';
 import { jsonStringify } from '../../utils/slowOperations.js';
@@ -171,10 +174,19 @@ function LimitBar(t0) {
     return t8;
   }
 }
-export function Usage(): React.ReactNode {
+type UsageProps = {
+  /** Reports whether the tab is handling Esc itself (boost switcher open). */
+  onOwnsEscChange?: (owns: boolean) => void;
+};
+export function Usage({
+  onOwnsEscChange
+}: UsageProps = {}): React.ReactNode {
   const [utilization, setUtilization] = useState<Utilization | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [boostQuote, setBoostQuote] = useState<UsageBoostQuote | null>(null);
+  const [boostOpen, setBoostOpen] = useState(false);
+  const [boostSummary, setBoostSummary] = useState<string | null>(null);
   const {
     columns
   } = useTerminalSize();
@@ -185,7 +197,16 @@ export function Usage(): React.ReactNode {
     setError(null);
     try {
       const data = await fetchUtilization();
-      setUtilization(data);
+      setUtilization(withMockUsageBoostUtilization(data));
+      if (isUsageBoostAvailable()) {
+        // Quote failures must never hide the usage bars themselves.
+        try {
+          setBoostQuote(await fetchUsageBoostQuote());
+        } catch (quoteErr) {
+          logError(quoteErr as Error);
+          setBoostQuote(null);
+        }
+      }
     } catch (err) {
       logError(err as Error);
       const axiosError = err as {
@@ -208,6 +229,18 @@ export function Usage(): React.ReactNode {
     context: 'Settings',
     isActive: !!error && !isLoading
   });
+  const canBoost = !!boostQuote?.available && !!utilization?.five_hour && !!utilization?.seven_day;
+  useKeybinding('usageBoost:open', () => {
+    setBoostSummary(null);
+    setBoostOpen(true);
+  }, {
+    context: 'Settings',
+    isActive: canBoost && !boostOpen && !isLoading
+  });
+  useEffect(() => {
+    onOwnsEscChange?.(boostOpen);
+    return () => onOwnsEscChange?.(false);
+  }, [boostOpen, onOwnsEscChange]);
   if (error) {
     return <Box flexDirection="column" gap={1}>
         <Text color="error">Error: {error}</Text>
@@ -227,6 +260,15 @@ export function Usage(): React.ReactNode {
         </Text>
       </Box>;
   }
+
+  if (boostOpen && boostQuote && utilization) {
+    return <UsageBoost quote={boostQuote} utilization={utilization} maxWidth={maxWidth} onApplied={(next, summary) => {
+      setUtilization(next);
+      setBoostSummary(summary);
+      setBoostOpen(false);
+    }} onCancel={() => setBoostOpen(false)} />;
+  }
+  const suggestBoost = shouldSuggestUsageBoost(boostQuote, utilization);
 
   // Only Max and Team plans have a Sonnet limit that differs from the weekly
   // limit (see rateLimitMessages.ts). For other plans the bar is redundant.
@@ -254,12 +296,24 @@ export function Usage(): React.ReactNode {
       limit: limit_0
     }) => limit_0 && <LimitBar key={title} title={title} limit={limit_0} maxWidth={maxWidth} />)}
 
+      {boostSummary && <Text color="success">✓ {boostSummary}</Text>}
+
+      {suggestBoost && !boostSummary && <Box flexDirection="column">
+          <Text color="warning">Your session limit is nearly used up, but most of your week is still available.</Text>
+          <Text dimColor>Press <Text bold>b</Text> to shift some weekly headroom into this session before it runs out.</Text>
+        </Box>}
+
       {utilization.extra_usage && <ExtraUsageSection extraUsage={utilization.extra_usage} maxWidth={maxWidth} />}
 
       {isEligibleForOverageCreditGrant() && <OverageCreditUpsell maxWidth={maxWidth} />}
 
+      {boostQuote && !boostQuote.available && boostQuote.unavailable_reason && <Text dimColor>{boostQuote.unavailable_reason}</Text>}
+
       <Text dimColor>
-        <ConfigurableShortcutHint action="confirm:no" context="Settings" fallback="Esc" description="cancel" />
+        <Byline>
+          {canBoost && <ConfigurableShortcutHint action="usageBoost:open" context="Settings" fallback="b" description="boost session" />}
+          <ConfigurableShortcutHint action="confirm:no" context="Settings" fallback="Esc" description="cancel" />
+        </Byline>
       </Text>
     </Box>;
 }

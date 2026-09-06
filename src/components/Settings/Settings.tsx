@@ -30,6 +30,7 @@ export function Settings(t0) {
   const [tabsHidden, setTabsHidden] = useState(false);
   const [configOwnsEsc, setConfigOwnsEsc] = useState(false);
   const [gatesOwnsEsc, setGatesOwnsEsc] = useState(false);
+  const [usageOwnsEsc, setUsageOwnsEsc] = useState(false);
   const insideModal = useIsInsideModal();
   const {
     rows
@@ -54,7 +55,7 @@ export function Settings(t0) {
     t1 = $[2];
   }
   const handleEscape = t1;
-  const t2 = !tabsHidden && !(selectedTab === "Config" && configOwnsEsc) && !(selectedTab === "Gates" && gatesOwnsEsc);
+  const t2 = !tabsHidden && !(selectedTab === "Config" && configOwnsEsc) && !(selectedTab === "Gates" && gatesOwnsEsc) && !(selectedTab === "Usage" && usageOwnsEsc);
   let t3;
   if ($[3] !== t2) {
     t3 = {
@@ -88,7 +89,7 @@ export function Settings(t0) {
   }
   let t6;
   if ($[12] === Symbol.for("react.memo_cache_sentinel")) {
-    t6 = <Tab key="usage" title="Usage"><Usage /></Tab>;
+    t6 = <Tab key="usage" title="Usage"><Usage onOwnsEscChange={setUsageOwnsEsc} /></Tab>;
     $[12] = t6;
   } else {
     t6 = $[12];

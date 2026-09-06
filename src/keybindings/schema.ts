@@ -167,6 +167,10 @@ export const KEYBINDING_ACTIONS = [
   'settings:search',
   'settings:retry',
   'settings:close',
+  // /usage session-boost switcher actions
+  'usageBoost:open',
+  'usageBoost:increase',
+  'usageBoost:decrease',
   // Voice actions
   'voice:pushToTalk',
 ] as const
